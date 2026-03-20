@@ -1,7 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createSession, getUserByEmail, verifyPassword } from "@/lib/auth";
+import {
+  createSession,
+  getUserByEmail,
+  verifyPassword,
+} from "@/lib/auth";
 import { loginSchema } from "@/lib/validations";
 
 export async function loginAction(formData: FormData): Promise<void> {
@@ -33,10 +37,9 @@ export async function loginAction(formData: FormData): Promise<void> {
 
   await createSession({
     userId: user.id,
-    employeeId: user.employee?.id,
+    employeeId: user.employee?.id ?? null,
     role: user.role,
     email: user.email,
-    fullName: user.employee?.fullName,
   });
 
   if (user.role === "ADMIN") {
