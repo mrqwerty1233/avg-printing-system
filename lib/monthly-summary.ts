@@ -48,7 +48,9 @@ export function computeMonthlySummary({
     (record) => record.attendanceStatus === "PRESENT"
   ).length;
 
-  const lateCount = records.filter((record) => record.isLate).length;
+  const lateCount = records.filter(
+    (record) => record.attendanceStatus === "PRESENT" && record.isLate
+  ).length;
 
   const lateDeductions = lateCount * lateDeduction;
 

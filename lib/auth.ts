@@ -5,12 +5,11 @@ import { prisma } from "./prisma";
 
 export const SESSION_COOKIE_NAME = "avg_printing_session";
 
-export type SessionUser = {
-  userId: string;
-  employeeId?: string;
-  role: "ADMIN" | "STAFF";
+type SessionUser = {
+  id: string;
   email: string;
-  fullName?: string;
+  role: "ADMIN" | "STAFF";
+  fullName?: string | null;
 };
 
 export async function hashPassword(password: string) {

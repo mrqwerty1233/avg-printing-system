@@ -158,12 +158,10 @@ export function DailySheetForm({
   const lateDeduction = isLate ? 100 : 0;
 
   const dailyTotal = useMemo(() => {
-    if (formState.attendanceStatus !== "PRESENT") return 0;
-
     return formState.jobEntries.reduce((sum, item) => {
       return sum + Number(item.amount || 0);
     }, 0);
-  }, [formState.attendanceStatus, formState.jobEntries]);
+  }, [formState.jobEntries]);
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setFormState((prev) => ({
@@ -327,7 +325,7 @@ export function DailySheetForm({
                 type="time"
                 value={formState.timeIn}
                 onChange={(e) => updateField("timeIn", e.target.value)}
-                disabled={formState.attendanceStatus !== "PRESENT"}
+                disabled={false}
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-400 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
@@ -363,7 +361,7 @@ export function DailySheetForm({
             <button
               type="button"
               onClick={addMoreRows}
-              disabled={formState.attendanceStatus !== "PRESENT"}
+              disabled={false}
               className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition disabled:bg-slate-100 disabled:text-slate-400"
             >
               Add 10 More Rows
@@ -409,7 +407,7 @@ export function DailySheetForm({
                           onChange={(e) =>
                             updateJobEntry(index, "jobType", e.target.value)
                           }
-                          disabled={formState.attendanceStatus !== "PRESENT"}
+                          disabled={false}
                           placeholder=""
                           className="w-full bg-white px-3 py-3 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-100 disabled:text-slate-500"
                         />
@@ -421,7 +419,7 @@ export function DailySheetForm({
                           onChange={(e) =>
                             updateJobEntry(index, "description", e.target.value)
                           }
-                          disabled={formState.attendanceStatus !== "PRESENT"}
+                          disabled={false}
                           placeholder=""
                           className="w-full bg-white px-3 py-3 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-100 disabled:text-slate-500"
                         />
@@ -436,7 +434,7 @@ export function DailySheetForm({
                           onChange={(e) =>
                             updateJobEntry(index, "quantity", e.target.value)
                           }
-                          disabled={formState.attendanceStatus !== "PRESENT"}
+                          disabled={false}
                           className="w-full bg-white px-3 py-3 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </td>
@@ -453,7 +451,7 @@ export function DailySheetForm({
                             onChange={(e) =>
                               updateJobEntry(index, "amount", e.target.value)
                             }
-                            disabled={formState.attendanceStatus !== "PRESENT"}
+                            disabled={false}
                             placeholder=""
                             className="w-full bg-white py-3 pr-3 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-100 disabled:text-slate-500"
                           />
@@ -466,7 +464,7 @@ export function DailySheetForm({
                           onChange={(e) =>
                             updateJobEntry(index, "remarks", e.target.value)
                           }
-                          disabled={formState.attendanceStatus !== "PRESENT"}
+                          disabled={false}
                           placeholder=""
                           className="w-full bg-white px-3 py-3 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-100 disabled:text-slate-500"
                         />
@@ -489,7 +487,7 @@ export function DailySheetForm({
                     <td className="border-t border-slate-200 px-3 py-3 text-slate-500">
                       {formState.attendanceStatus === "PRESENT"
                         ? "Only filled rows will be saved."
-                        : "Job entries disabled unless attendance is Present."}
+                        : "Job entries are allowed even when attendance is Absent. Attendance only affects daily salary and late deduction."}
                     </td>
                   </tr>
                 </tfoot>

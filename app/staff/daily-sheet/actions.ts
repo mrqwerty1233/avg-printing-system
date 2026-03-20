@@ -1,132 +1,188 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/auth";
-import {
-  calculateDailyJobIncomeTotal,
-  calculateLateDeduction,
-  createWorkDate,
-  isLateByTimeIn,
-  parseJobEntriesJson,
-} from "@/lib/daily-records";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 
-function normalizeString(value: FormDataEntryValue | null) {
-  return String(value ?? "").trim();
+type JobEntryInput = {
+  jobType: string;
+  description: string;
+  quantity: number;
+  amount: number;
+  remarks: string;
+};
+
+function getString(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
 }
 
-export async function saveDailySheetAction(formData: FormData): Promise<void> {
+function getNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeJobEntries(formData: FormData): JobEntryInput[] {
+  const raw = getString(formData, "jobEntries");
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as Array<{
+      jobType?: string;
+      description?: string;
+      quantity?: number | string;
+      amount?: number | string;
+      remarks?: string;
+    }>;
+
+    return parsed
+      .map((entry) => ({
+        jobType: String(entry.jobType ?? "").trim(),
+        description: String(entry.description ?? "").trim(),
+        quantity: getNumber(String(entry.quantity ?? 0)),
+        amount: getNumber(String(entry.amount ?? 0)),
+        remarks: String(entry.remarks ?? "").trim(),
+      }))
+      .filter((entry) => {
+        return (
+          entry.jobType !== "" ||
+          entry.description !== "" ||
+          entry.quantity > 0 ||
+          entry.amount > 0 ||
+          entry.remarks !== ""
+        );
+      });
+  } catch {
+    return [];
+  }
+}
+
+function parseWorkDate(value: string) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function normalizeTimeIn(timeIn: string, attendanceStatus: string) {
+  if (attendanceStatus !== "PRESENT") {
+    return null;
+  }
+
+  return timeIn || null;
+}
+
+function isLateTime(timeIn: string | null, attendanceStatus: string) {
+  if (attendanceStatus !== "PRESENT" || !timeIn) {
+    return false;
+  }
+
+  return timeIn >= "08:00";
+}
+
+export async function saveDailySheetAction(formData: FormData) {
   const sessionUser = await requireStaff();
 
-  if (!sessionUser.employeeId) {
-    redirect("/staff/daily-sheet?error=employee_not_found");
+  const workDate = getString(formData, "workDate");
+  const attendanceStatus = getString(formData, "attendanceStatus");
+  const timeIn = getString(formData, "timeIn");
+  const notes = getString(formData, "notes");
+  const jobEntries = normalizeJobEntries(formData);
+
+  if (!workDate || !attendanceStatus) {
+    redirect(`/staff/daily-sheet?date=${workDate}&error=missing_fields`);
   }
 
-  const workDateString = normalizeString(formData.get("workDate"));
-  const attendanceStatus = normalizeString(formData.get("attendanceStatus")) as
-    | "PRESENT"
-    | "ABSENT"
-    | "NO_RECORD";
-  const timeIn = normalizeString(formData.get("timeIn"));
-  const notes = normalizeString(formData.get("notes"));
-  const jobEntriesJson = normalizeString(formData.get("jobEntriesJson"));
-
-  if (!workDateString || !attendanceStatus) {
-    redirect("/staff/daily-sheet?error=invalid_input");
-  }
-
-  const workDate = createWorkDate(workDateString);
-
-  let jobEntries = parseJobEntriesJson(jobEntriesJson);
-
-  jobEntries = jobEntries.filter((entry) => {
-    const hasText =
-      entry.jobType.trim().length > 0 ||
-      entry.description.trim().length > 0 ||
-      entry.remarks.trim().length > 0;
-
-    const hasNumbers = Number(entry.quantity) > 0 || Number(entry.amount) > 0;
-
-    return hasText || hasNumbers;
+  const employee = await prisma.employee.findFirst({
+    where: {
+      userId: sessionUser.id,
+    },
   });
 
-  if (attendanceStatus !== "PRESENT") {
-    jobEntries = [];
+  if (!employee) {
+    redirect("/unauthorized");
   }
 
-  if (attendanceStatus === "PRESENT" && !timeIn) {
-    redirect(`/staff/daily-sheet?date=${workDateString}&error=invalid_input`);
-  }
-
-  if (attendanceStatus === "PRESENT" && jobEntries.length === 0) {
-    redirect(`/staff/daily-sheet?date=${workDateString}&error=invalid_input`);
-  }
-
-  const isLate = attendanceStatus === "PRESENT" ? isLateByTimeIn(timeIn) : false;
-  const lateDeductionAmount = calculateLateDeduction(isLate);
-  const dailyJobIncomeTotal =
-    attendanceStatus === "PRESENT"
-      ? calculateDailyJobIncomeTotal(jobEntries)
+  const normalizedTimeIn = normalizeTimeIn(timeIn, attendanceStatus);
+  const isLate = isLateTime(normalizedTimeIn, attendanceStatus);
+  const lateDeductionAmount =
+    attendanceStatus === "PRESENT" && isLate
+      ? Number(employee.lateDeduction)
       : 0;
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const dailyRecord = await tx.dailyRecord.upsert({
-      where: {
-        employeeId_workDate: {
-          employeeId: sessionUser.employeeId!,
-          workDate,
-        },
-      },
-      update: {
-        timeIn: attendanceStatus === "PRESENT" ? timeIn || null : null,
-        attendanceStatus,
-        isLate,
-        lateDeductionAmount,
-        notes: notes || null,
-        dailyJobIncomeTotal,
-      },
-      create: {
-        employeeId: sessionUser.employeeId!,
-        workDate,
-        timeIn: attendanceStatus === "PRESENT" ? timeIn || null : null,
-        attendanceStatus,
-        isLate,
-        lateDeductionAmount,
-        notes: notes || null,
-        dailyJobIncomeTotal,
-      },
-    });
+  const dailyJobIncomeTotal = jobEntries.reduce((sum, entry) => {
+    return sum + Number(entry.amount || 0);
+  }, 0);
 
-    await tx.jobEntry.deleteMany({
-      where: {
-        dailyRecordId: dailyRecord.id,
-      },
+  const parsedWorkDate = parseWorkDate(workDate);
+
+  const existingRecord = await prisma.dailyRecord.findFirst({
+    where: {
+      employeeId: employee.id,
+      workDate: parsedWorkDate,
+    },
+  });
+
+  if (existingRecord) {
+    await prisma.$transaction(async (tx) => {
+      await tx.jobEntry.deleteMany({
+        where: {
+          dailyRecordId: existingRecord.id,
+        },
+      });
+
+      await tx.dailyRecord.update({
+        where: {
+          id: existingRecord.id,
+        },
+        data: {
+          attendanceStatus: attendanceStatus as "PRESENT" | "ABSENT" | "NO_RECORD",
+          timeIn: normalizedTimeIn,
+          isLate,
+          lateDeductionAmount,
+          notes: notes || null,
+          dailyJobIncomeTotal,
+        },
+      });
+
+      if (jobEntries.length > 0) {
+        await tx.jobEntry.createMany({
+          data: jobEntries.map((entry) => ({
+            dailyRecordId: existingRecord.id,
+            jobType: entry.jobType || "",
+            description: entry.description || null,
+            quantity: entry.quantity,
+            amount: entry.amount,
+            remarks: entry.remarks || null,
+          })),
+        });
+      }
     });
+  } else {
+    await prisma.$transaction(async (tx) => {
+      const dailyRecord = await tx.dailyRecord.create({
+        data: {
+          employeeId: employee.id,
+          workDate: parsedWorkDate,
+          attendanceStatus: attendanceStatus as "PRESENT" | "ABSENT" | "NO_RECORD",
+          timeIn: normalizedTimeIn,
+          isLate,
+          lateDeductionAmount,
+          notes: notes || null,
+          dailyJobIncomeTotal,
+        },
+      });
 
       if (jobEntries.length > 0) {
         await tx.jobEntry.createMany({
           data: jobEntries.map((entry) => ({
             dailyRecordId: dailyRecord.id,
             jobType: entry.jobType || "",
-            description: entry.description || "",
-            quantity: entry.quantity || 1,
-            amount: entry.amount || 0,
-            remarks: entry.remarks || "",
+            description: entry.description || null,
+            quantity: entry.quantity,
+            amount: entry.amount,
+            remarks: entry.remarks || null,
           })),
         });
       }
-  });
+    });
+  }
 
-  revalidatePath("/staff/daily-sheet");
-  revalidatePath("/staff/history");
-  revalidatePath("/staff/dashboard");
-  revalidatePath("/staff/monthly-summary");
-  revalidatePath("/admin/daily-records");
-  revalidatePath("/admin/dashboard");
-  revalidatePath("/admin/monthly-summaries");
-  revalidatePath("/admin/print/monthly");
-
-  redirect(`/staff/daily-sheet?date=${workDateString}&success=saved`);
+  redirect(`/staff/daily-sheet?date=${workDate}&success=saved`);
 }
