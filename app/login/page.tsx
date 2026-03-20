@@ -1,85 +1,50 @@
-import { loginAction } from "./actions";
-import { SubmitButton } from "@/components/submit-button";
+"use server";
 
-type LoginPageProps = {
-  searchParams?: Promise<{
-    error?: string;
-  }>;
-};
+import { redirect } from "next/navigation";
+import {
+  createSession,
+  getUserByEmail,
+  verifyPassword,
+} from "@/lib/auth";
+import { loginSchema } from "@/lib/validations";
 
-function getErrorMessage(error?: string) {
-  switch (error) {
-    case "invalid_input":
-      return "Please enter a valid email and password.";
-    case "invalid_credentials":
-      return "Invalid email or password.";
-    default:
-      return "";
+export async function loginAction(formData: FormData): Promise<void> {
+  const rawData = {
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    password: String(formData.get("password") ?? ""),
+  };
+
+  const validated = loginSchema.safeParse(rawData);
+
+  if (!validated.success) {
+    redirect("/login?error=invalid_input");
   }
-}
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const params = await searchParams;
-  const errorMessage = getErrorMessage(params?.error);
+  const user = await getUserByEmail(validated.data.email);
 
-  return (
-    <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-lg border border-slate-200 p-6">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">
-            AVG Printing Shop
-          </h1>
-          <p className="text-sm text-slate-600 mt-2">
-            Employee Job, Attendance, and Salary Tracking System
-          </p>
-        </div>
+  if (!user || !user.isActive) {
+    redirect("/login?error=invalid_credentials");
+  }
 
-        {errorMessage ? (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        ) : null}
-
-        <form action={loginAction} className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Enter your password"
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
-
-          <SubmitButton idleLabel="Sign In" pendingLabel="Signing In..." />
-        </form>
-
-        <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-          Staff Log in: yourname@avg.com / yourname123 | Example: marl@avg.com / marl123
-        </div>
-      </div>
-    </main>
+  const isPasswordValid = await verifyPassword(
+    validated.data.password,
+    user.passwordHash
   );
+
+  if (!isPasswordValid) {
+    redirect("/login?error=invalid_credentials");
+  }
+
+  await createSession({
+    userId: user.id,
+    employeeId: user.employee?.id ?? null,
+    role: user.role,
+    email: user.email,
+  });
+
+  if (user.role === "ADMIN") {
+    redirect("/admin/dashboard");
+  }
+
+  redirect("/staff/dashboard");
 }
