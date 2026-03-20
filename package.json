@@ -1,9 +1,45 @@
 {
-  "scripts": {
+      "scripts": {
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
+
+    "lint": "next lint",
+
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+
+    "postinstall": "prisma generate",
+
     "vercel-build": "prisma generate && prisma migrate deploy && next build"
+  },
+
+  "name": "avg-printing-system",
+  "version": "0.1.0",
+  "private": true,
+  
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bcryptjs": "^3.0.3",
+    "next": "16.2.0",
+    "prisma": "^6.19.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
   }
 }
