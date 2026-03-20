@@ -157,6 +157,13 @@ export default async function AdminDashboardPage() {
           >
             Exports
           </Link>
+
+          <Link
+            href="/admin/cash-advances"
+            className="inline-flex rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 hover:bg-slate-50 transition"
+          >
+            Cash Advances
+          </Link>
         </div>
       </div>
     </PageContainer>

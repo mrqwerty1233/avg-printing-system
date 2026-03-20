@@ -30,6 +30,17 @@ export default async function AdminPrintMonthlyPage({
     where: employeeId !== "all" ? { id: employeeId } : undefined,
     include: {
       user: true,
+      cashAdvances: {
+        where: {
+          advanceDate: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+        orderBy: {
+          advanceDate: "asc",
+        },
+      },
       dailyRecords: {
         where: {
           workDate: {
@@ -49,11 +60,20 @@ export default async function AdminPrintMonthlyPage({
 
   type PrintEmployeeRow = (typeof employees)[number];
   type PrintEmployeeDailyRecord = PrintEmployeeRow["dailyRecords"][number];
+  type PrintCashAdvance = PrintEmployeeRow["cashAdvances"][number];
 
   const reports = employees.map((employee: PrintEmployeeRow) => {
+  const cashAdvanceTotal = employee.cashAdvances.reduce(
+    (sum: number, item: PrintCashAdvance) => {
+      return sum + Number(item.amount);
+    },
+    0
+  );
+
     const summary = computeMonthlySummary({
       dailySalary: Number(employee.dailySalary),
       lateDeduction: Number(employee.lateDeduction),
+      cashAdvanceTotal,
       records: employee.dailyRecords.map((record: PrintEmployeeDailyRecord) => ({
         attendanceStatus: record.attendanceStatus,
         isLate: record.isLate,
@@ -161,6 +181,12 @@ export default async function AdminPrintMonthlyPage({
                             {formatCurrency(summary.bonus)}
                           </span>
                         </div>
+                        <div className="flex justify-between">
+                          <span>Cash Advance Total</span>
+                          <span className="font-medium">
+                            {formatCurrency(summary.cashAdvanceTotal)}
+                          </span>
+                        </div>
                         <div className="flex justify-between pt-3 border-t border-slate-200 text-base">
                           <span className="font-semibold">Final Salary</span>
                           <span className="font-bold">
@@ -171,56 +197,86 @@ export default async function AdminPrintMonthlyPage({
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="border-t border-b border-slate-200 bg-slate-50 print:bg-white">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-semibold">Date</th>
-                          <th className="px-4 py-3 text-left font-semibold">
-                            Attendance
-                          </th>
-                          <th className="px-4 py-3 text-left font-semibold">Time In</th>
-                          <th className="px-4 py-3 text-left font-semibold">Late</th>
-                          <th className="px-4 py-3 text-left font-semibold">
-                            Job Total
-                          </th>
-                          <th className="px-4 py-3 text-left font-semibold">Notes</th>
-                        </tr>
-                      </thead>
+                  <div className="border-t border-slate-200 p-6">
+                    <h3 className="text-lg font-semibold mb-3">Cash Advances</h3>
 
-                      <tbody>
-                        {employee.dailyRecords.length === 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm mb-6">
+                        <thead className="border-b border-slate-200 bg-slate-50 print:bg-white">
                           <tr>
-                            <td
-                              colSpan={6}
-                              className="px-4 py-6 text-center text-slate-500"
-                            >
-                              No daily records found.
-                            </td>
+                            <th className="px-4 py-3 text-left font-semibold">Date</th>
+                            <th className="px-4 py-3 text-left font-semibold">Amount</th>
+                            <th className="px-4 py-3 text-left font-semibold">Note</th>
                           </tr>
-                        ) : (
-                          employee.dailyRecords.map((record: PrintEmployeeDailyRecord) => (
-                            <tr
-                              key={record.id}
-                              className="border-b border-slate-100 print:border-slate-300"
-                            >
-                              <td className="px-4 py-3">
-                                {record.workDate.toISOString().slice(0, 10)}
+                        </thead>
+                        <tbody>
+                          {employee.cashAdvances.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-4 text-center text-slate-500">
+                                No cash advances found.
                               </td>
-                              <td className="px-4 py-3">{record.attendanceStatus}</td>
-                              <td className="px-4 py-3">{record.timeIn || "-"}</td>
-                              <td className="px-4 py-3">
-                                {record.isLate ? "Yes" : "No"}
-                              </td>
-                              <td className="px-4 py-3">
-                                {formatCurrency(Number(record.dailyJobIncomeTotal))}
-                              </td>
-                              <td className="px-4 py-3">{record.notes || "-"}</td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            employee.cashAdvances.map((advance: PrintCashAdvance) => (
+                              <tr key={advance.id} className="border-b border-slate-100">
+                                <td className="px-4 py-3">
+                                  {advance.advanceDate.toISOString().slice(0, 10)}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {formatCurrency(Number(advance.amount))}
+                                </td>
+                                <td className="px-4 py-3">{advance.note || "-"}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <h3 className="text-lg font-semibold mb-3">Daily Records</h3>
+
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="border-t border-b border-slate-200 bg-slate-50 print:bg-white">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold">Date</th>
+                            <th className="px-4 py-3 text-left font-semibold">Attendance</th>
+                            <th className="px-4 py-3 text-left font-semibold">Time In</th>
+                            <th className="px-4 py-3 text-left font-semibold">Late</th>
+                            <th className="px-4 py-3 text-left font-semibold">Job Total</th>
+                            <th className="px-4 py-3 text-left font-semibold">Notes</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {employee.dailyRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                                No daily records found.
+                              </td>
+                            </tr>
+                          ) : (
+                            employee.dailyRecords.map((record: PrintEmployeeDailyRecord) => (
+                              <tr
+                                key={record.id}
+                                className="border-b border-slate-100 print:border-slate-300"
+                              >
+                                <td className="px-4 py-3">
+                                  {record.workDate.toISOString().slice(0, 10)}
+                                </td>
+                                <td className="px-4 py-3">{record.attendanceStatus}</td>
+                                <td className="px-4 py-3">{record.timeIn || "-"}</td>
+                                <td className="px-4 py-3">{record.isLate ? "Yes" : "No"}</td>
+                                <td className="px-4 py-3">
+                                  {formatCurrency(Number(record.dailyJobIncomeTotal))}
+                                </td>
+                                <td className="px-4 py-3">{record.notes || "-"}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
                   {index < reports.length - 1 ? (

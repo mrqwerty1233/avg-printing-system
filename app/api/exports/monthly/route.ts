@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
     where: employeeId && employeeId !== "all" ? { id: employeeId } : undefined,
     include: {
       user: true,
+      cashAdvances: {
+        where: {
+          advanceDate: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+      },
       dailyRecords: {
         where: {
           workDate: {
@@ -43,6 +51,7 @@ export async function GET(request: NextRequest) {
 
   type ExportEmployeeRow = (typeof employees)[number];
   type ExportEmployeeDailyRecord = ExportEmployeeRow["dailyRecords"][number];
+  type ExportCashAdvance = ExportEmployeeRow["cashAdvances"][number];
 
   const rows: Array<Array<string | number>> = [
     [
@@ -54,6 +63,7 @@ export async function GET(request: NextRequest) {
       "Base Salary",
       "Job Income Total",
       "Bonus",
+      "Cash Advance Total",
       "Final Salary",
     ],
   ];
@@ -61,9 +71,19 @@ export async function GET(request: NextRequest) {
   for (const employee of employees) {
     const typedEmployee: ExportEmployeeRow = employee;
 
+    type ExportCashAdvance = ExportEmployeeRow["cashAdvances"][number];
+
+    const cashAdvanceTotal = typedEmployee.cashAdvances.reduce(
+      (sum: number, item: ExportCashAdvance) => {
+        return sum + Number(item.amount);
+      },
+      0
+    );
+
     const summary = computeMonthlySummary({
       dailySalary: Number(typedEmployee.dailySalary),
       lateDeduction: Number(typedEmployee.lateDeduction),
+      cashAdvanceTotal,
       records: typedEmployee.dailyRecords.map(
         (record: ExportEmployeeDailyRecord) => ({
           attendanceStatus: record.attendanceStatus,
@@ -82,6 +102,7 @@ export async function GET(request: NextRequest) {
       summary.baseSalary.toFixed(2),
       summary.jobIncomeTotal.toFixed(2),
       summary.bonus.toFixed(2),
+      summary.cashAdvanceTotal.toFixed(2),
       summary.finalSalary.toFixed(2),
     ]);
   }

@@ -1,12 +1,35 @@
-type MonthlySummaryInput = {
+export type MonthlySummaryRecord = {
+  attendanceStatus: "PRESENT" | "ABSENT" | "NO_RECORD";
+  isLate: boolean;
+  dailyJobIncomeTotal: number;
+};
+
+export type ComputeMonthlySummaryInput = {
   dailySalary: number;
   lateDeduction: number;
-  records: Array<{
-    attendanceStatus: string;
-    isLate: boolean;
-    dailyJobIncomeTotal: number;
-  }>;
+  records: MonthlySummaryRecord[];
+  cashAdvanceTotal?: number;
 };
+
+export type MonthlySummaryResult = {
+  workedDays: number;
+  lateCount: number;
+  lateDeductions: number;
+  baseSalary: number;
+  jobIncomeTotal: number;
+  bonus: number;
+  cashAdvanceTotal: number;
+  finalSalary: number;
+};
+
+export function getCurrentMonthYear() {
+  const now = new Date();
+
+  return {
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  };
+}
 
 export function getMonthDateRange(month: number, year: number) {
   const startDate = new Date(year, month - 1, 1);
@@ -19,27 +42,30 @@ export function computeMonthlySummary({
   dailySalary,
   lateDeduction,
   records,
-}: MonthlySummaryInput) {
+  cashAdvanceTotal = 0,
+}: ComputeMonthlySummaryInput): MonthlySummaryResult {
   const workedDays = records.filter(
     (record) => record.attendanceStatus === "PRESENT"
   ).length;
 
-  const lateCount = records.filter(
-    (record) => record.attendanceStatus === "PRESENT" && record.isLate
-  ).length;
+  const lateCount = records.filter((record) => record.isLate).length;
 
   const lateDeductions = lateCount * lateDeduction;
 
   const baseSalary = workedDays * dailySalary;
 
-  const jobIncomeTotal = records.reduce(
-    (sum, record) => sum + Number(record.dailyJobIncomeTotal || 0),
-    0
-  );
+  const jobIncomeTotal = records.reduce((sum, record) => {
+    return sum + Number(record.dailyJobIncomeTotal || 0);
+  }, 0);
 
   const bonus = jobIncomeTotal >= 30000 ? 1000 : 0;
 
-  const finalSalary = baseSalary - lateDeductions + bonus;
+  const finalSalary =
+    baseSalary +
+    jobIncomeTotal +
+    bonus -
+    lateDeductions -
+    Number(cashAdvanceTotal || 0);
 
   return {
     workedDays,
@@ -48,15 +74,7 @@ export function computeMonthlySummary({
     baseSalary,
     jobIncomeTotal,
     bonus,
+    cashAdvanceTotal: Number(cashAdvanceTotal || 0),
     finalSalary,
-  };
-}
-
-export function getCurrentMonthYear() {
-  const now = new Date();
-
-  return {
-    month: now.getMonth() + 1,
-    year: now.getFullYear(),
   };
 }

@@ -43,6 +43,7 @@ model Employee {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  cashAdvances CashAdvance[]
 
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   dailyRecords     DailyRecord[]
@@ -106,4 +107,19 @@ model MonthlySummary {
 
   @@unique([employeeId, month, year])
   @@map("monthly_summaries")
+}
+
+model CashAdvance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  advanceDate DateTime
+  amount      Decimal  @db.Decimal(10, 2)
+  note        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([advanceDate])
 }

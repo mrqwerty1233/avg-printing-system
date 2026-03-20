@@ -26,6 +26,7 @@ type SummaryRow = {
   baseSalary: number;
   jobIncomeTotal: number;
   bonus: number;
+  cashAdvanceTotal: number;
   finalSalary: number;
 };
 
@@ -52,6 +53,14 @@ export default async function AdminMonthlySummariesPage({
           },
         },
       },
+      cashAdvances: {
+        where: {
+          advanceDate: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+      },
       user: true,
     },
     orderBy: {
@@ -61,11 +70,22 @@ export default async function AdminMonthlySummariesPage({
 
   type EmployeeMonthlyRow = (typeof employees)[number];
   type EmployeeDailyRecord = EmployeeMonthlyRow["dailyRecords"][number];
+  type EmployeeCashAdvance = EmployeeMonthlyRow["cashAdvances"][number];
 
   const rows: SummaryRow[] = employees.map((employee: EmployeeMonthlyRow) => {
+type EmployeeCashAdvance = EmployeeMonthlyRow["cashAdvances"][number];
+
+const cashAdvanceTotal = employee.cashAdvances.reduce(
+  (sum: number, item: EmployeeCashAdvance) => {
+    return sum + Number(item.amount);
+  },
+  0
+);
+
     const summary = computeMonthlySummary({
       dailySalary: Number(employee.dailySalary),
       lateDeduction: Number(employee.lateDeduction),
+      cashAdvanceTotal,
       records: employee.dailyRecords.map((record: EmployeeDailyRecord) => ({
         attendanceStatus: record.attendanceStatus,
         isLate: record.isLate,
@@ -90,6 +110,11 @@ export default async function AdminMonthlySummariesPage({
 
   const totalJobIncome = rows.reduce(
     (sum: number, row: SummaryRow) => sum + row.jobIncomeTotal,
+    0
+  );
+
+  const totalCashAdvances = rows.reduce(
+    (sum: number, row: SummaryRow) => sum + row.cashAdvanceTotal,
     0
   );
 
@@ -153,7 +178,7 @@ export default async function AdminMonthlySummariesPage({
           </form>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm">
             <p className="text-sm text-slate-500">Total Payroll</p>
             <h2 className="text-3xl font-bold text-slate-900 mt-2">
@@ -167,6 +192,13 @@ export default async function AdminMonthlySummariesPage({
               ₱{totalJobIncome.toFixed(2)}
             </h2>
           </div>
+
+          <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Total Cash Advances</p>
+            <h2 className="text-3xl font-bold text-slate-900 mt-2">
+              ₱{totalCashAdvances.toFixed(2)}
+            </h2>
+          </div>
         </div>
 
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -174,72 +206,40 @@ export default async function AdminMonthlySummariesPage({
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Employee
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Worked Days
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Late Count
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Late Deductions
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Base Salary
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Job Income
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Bonus
-                  </th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">
-                    Final Salary
-                  </th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Employee</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Worked Days</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Late Count</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Late Deductions</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Base Salary</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Job Income</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Bonus</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Cash Advance</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Final Salary</th>
                 </tr>
               </thead>
 
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="px-4 py-8 text-center text-slate-500"
-                    >
+                    <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                       No employees found.
                     </td>
                   </tr>
                 ) : (
                   rows.map((row: SummaryRow) => (
-                    <tr
-                      key={row.employeeId}
-                      className="border-b border-slate-100 last:border-b-0"
-                    >
+                    <tr key={row.employeeId} className="border-b border-slate-100 last:border-b-0">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900">
-                          {row.fullName}
-                        </div>
+                        <div className="font-medium text-slate-900">{row.fullName}</div>
                         <div className="text-xs text-slate-500">{row.email}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-700">{row.workedDays}</td>
                       <td className="px-4 py-3 text-slate-700">{row.lateCount}</td>
-                      <td className="px-4 py-3 text-red-600">
-                        ₱{row.lateDeductions.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        ₱{row.baseSalary.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        ₱{row.jobIncomeTotal.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-green-600">
-                        ₱{row.bonus.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-slate-900">
-                        ₱{row.finalSalary.toFixed(2)}
-                      </td>
+                      <td className="px-4 py-3 text-red-600">₱{row.lateDeductions.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-slate-700">₱{row.baseSalary.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-slate-700">₱{row.jobIncomeTotal.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-green-600">₱{row.bonus.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-orange-600">₱{row.cashAdvanceTotal.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-900">₱{row.finalSalary.toFixed(2)}</td>
                     </tr>
                   ))
                 )}
